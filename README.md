@@ -14,7 +14,13 @@ This tool solves the problem by:
 
 ## Installation
 
-### Quick install (recommended)
+### Homebrew (recommended)
+
+```bash
+brew install athal7/tap/devcontainer-multi
+```
+
+### Quick install (curl)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/athal7/devcontainer-multi/main/install.sh | bash
