@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+#
+# ocdc - OpenCode DevContainers
+#
+# Unified CLI for managing devcontainer instances with auto-assigned ports
+# and branch-based isolation.
+#
+# Usage:
+#   ocdc                    # Launch TUI
+#   ocdc <command> [args]   # Run subcommand
+#
+# Commands:
+#   up [branch]             Start a devcontainer
+#   down [workspace]        Stop a devcontainer
+#   exec <cmd>              Execute command in container
+#   list                    List instances
+#   go [branch]             Navigate to clone
+#   version                 Show version
+#   help                    Show this help
+#
+# For command-specific help:
+#   ocdc <command> --help
+
+set -euo pipefail
+
+VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Show version
+show_version() {
+  echo "ocdc version $VERSION"
+}
+
+# Show help
+show_help() {
+  cat << 'EOF'
+Usage: ocdc [command] [options]
+
+OpenCode DevContainers - Run multiple devcontainer instances with auto-assigned
+ports and branch-based isolation.
+
+Commands:
+  up [branch]        Start a devcontainer (creates clone for branch)
+  down [workspace]   Stop a devcontainer
+  exec <cmd>         Execute command in running container
+  list               List all instances and clones
+  go [branch]        Navigate to an existing clone
+  version            Show version information
+  help               Show this help message
+
+Options:
+  --help, -h         Show help for command
+  --version, -v      Show version
+
+Examples:
+  ocdc                      # Launch interactive TUI
+  ocdc up                   # Start devcontainer for current directory
+  ocdc up feature-x         # Create clone for branch, start devcontainer
+  ocdc down                 # Stop current container
+  ocdc exec npm test        # Run tests in container
+  ocdc list                 # Show all instances
+  ocdc go feature-x         # Navigate to existing clone
+
+For more information, see: https://github.com/athal7/ocdc
+EOF
+}
+
+# Dispatch to subcommand
+dispatch() {
+  local cmd="$1"
+  shift
+  
+  case "$cmd" in
+    up)
+      exec "$SCRIPT_DIR/dcup" "$@"
+      ;;
+    down)
+      exec "$SCRIPT_DIR/dcdown" "$@"
+      ;;
+    exec)
+      exec "$SCRIPT_DIR/dcexec" "$@"
+      ;;
+    list)
+      exec "$SCRIPT_DIR/dclist" "$@"
+      ;;
+    go)
+      exec "$SCRIPT_DIR/dcgo" "$@"
+      ;;
+    tui)
+      exec "$SCRIPT_DIR/dctui" "$@"
+      ;;
+    version|--version|-v)
+      show_version
+      ;;
+    help|--help|-h)
+      show_help
+      ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      echo "" >&2
+      echo "Run 'ocdc help' for usage." >&2
+      exit 1
+      ;;
+  esac
+}
+
+# Main
+main() {
+  # No arguments - launch TUI or show help
+  if [[ $# -eq 0 ]]; then
+    # If stdin is a terminal, launch TUI
+    if [[ -t 0 ]] && [[ -t 1 ]]; then
+      exec "$SCRIPT_DIR/dctui"
+    else
+      # Non-interactive - show help
+      show_help
+    fi
+    return
+  fi
+  
+  dispatch "$@"
+}
+
+main "$@"
