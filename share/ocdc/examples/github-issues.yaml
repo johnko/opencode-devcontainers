@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=../poll-config.schema.json
+#
 # GitHub Issues Poll Configuration
 #
 # Polls for issues with a specific label and creates devcontainer
@@ -44,3 +46,6 @@ prompt:
 
 session:
   name_template: "ocdc-{repo_short}-issue-{number}"
+  # Use 'build' agent for issue work (can write code)
+  # Default is 'plan' (read-only, safe for automated sessions)
+  agent: build

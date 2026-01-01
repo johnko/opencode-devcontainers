@@ -6,7 +6,11 @@ fileignoreconfig:
 - filename: share/ocdc/examples/com.ocdc.poll.plist
   checksum: 509970ce2057a099be0328649fc1e237f8dcc608b15598bffc00ec83ce91e01d
 - filename: share/ocdc/examples/github-issues.yaml
-  checksum: 8fa9dcb624ecec99378a98ad3b861cb735a646c312dba200e0ef677efd448ccf
+  checksum: baa9a86c03edc13d16f1e4f81d53e6ac99da6aa426049b8dd8f19dc4a97e6879
+- filename: share/ocdc/examples/github-pr-reviews.yaml
+  checksum: 104d6549089f4758dfc63a4384786a935ea9bf5696ab4f0ed4137da040c7b4db
+- filename: share/ocdc/poll-config.schema.json
+  checksum: a2ad9e84e4ead1237000d9b361855b63e32a6f427a17f0703706b3a616264b99
 - filename: test/test_poll_config.bash
   checksum: 58689981ad53f2d8e3ec7050e03fa1a8d7eed51365f3d2147ebca9d5f0ae2829
 - filename: lib/ocdc-poll
