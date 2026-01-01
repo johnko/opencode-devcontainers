@@ -1,4 +1,4 @@
-# Contributing to devcontainer-multi
+# Contributing to ocdc
 
 Thanks for your interest in contributing!
 
@@ -6,8 +6,8 @@ Thanks for your interest in contributing!
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/athal7/devcontainer-multi.git
-   cd devcontainer-multi
+   git clone https://github.com/athal7/ocdc.git
+   cd ocdc
    ```
 
 2. Symlink the scripts to your PATH for local testing:
@@ -30,13 +30,13 @@ Run the full test suite:
 
 Run individual test files:
 ```bash
-./test/test_dcup.bash
-./test/test_dclist.bash
+./test/test_ocdc_up.bash
+./test/test_ocdc_list.bash
 ```
 
 ## Writing Tests
 
-Tests live in the `test/` directory. Each command should have a corresponding `test_<command>.bash` file.
+Tests live in the `test/` directory. Each command should have a corresponding `test_ocdc_<command>.bash` file.
 
 Tests use the helper functions from `test/test_helper.bash`:
 
@@ -71,9 +71,9 @@ print_summary
 ### Environment Variables for Testing
 
 Scripts support these env vars to allow test isolation:
-- `DCMULTI_CONFIG_DIR` - Config directory (default: `~/.config/devcontainer-multi`)
-- `DCMULTI_CACHE_DIR` - Cache directory (default: `~/.cache/devcontainer-multi`)
-- `DCMULTI_CLONES_DIR` - Clones directory (default: `~/.cache/devcontainer-clones`)
+- `OCDC_CONFIG_DIR` - Config directory (default: `~/.config/ocdc`)
+- `OCDC_CACHE_DIR` - Cache directory (default: `~/.cache/ocdc`)
+- `OCDC_CLONES_DIR` - Clones directory (default: `~/.cache/devcontainer-clones`)
 
 ## Code Style
 
@@ -81,7 +81,7 @@ Scripts support these env vars to allow test isolation:
 - Quote variables: `"$var"` not `$var`
 - Use `[[ ]]` for conditionals, not `[ ]`
 - Add help text in comments at the top of each script (extracted by `--help`)
-- Prefix log messages with the script name: `[dcup] message`
+- Prefix log messages with the script name: `[ocdc-up] message`
 
 ## Submitting Changes
 
