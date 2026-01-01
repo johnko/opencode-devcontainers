@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run all tests for devcontainer-multi
+# Run all tests for ocdc
 #
 
 set -euo pipefail
@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "========================================"
-echo "  devcontainer-multi test suite"
+echo "  ocdc test suite"
 echo "========================================"
 echo ""
 

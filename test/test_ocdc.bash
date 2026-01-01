@@ -87,29 +87,29 @@ test_ocdc_no_args_shows_tui_or_help() {
 }
 
 test_ocdc_up_dispatches() {
-  # Test that ocdc up --help works (dispatches to dcup)
+  # Test that ocdc up --help works (dispatches to ocdc-up)
   local output=$("$BIN_DIR/ocdc" up --help 2>&1)
-  assert_contains "$output" "dcup" || assert_contains "$output" "devcontainer"
+  assert_contains "$output" "ocdc-up" || assert_contains "$output" "devcontainer"
 }
 
 test_ocdc_down_dispatches() {
   local output=$("$BIN_DIR/ocdc" down --help 2>&1)
-  assert_contains "$output" "dcdown" || assert_contains "$output" "Stop"
+  assert_contains "$output" "ocdc-down" || assert_contains "$output" "Stop"
 }
 
 test_ocdc_exec_dispatches() {
   local output=$("$BIN_DIR/ocdc" exec --help 2>&1)
-  assert_contains "$output" "dcexec" || assert_contains "$output" "Execute"
+  assert_contains "$output" "ocdc-exec" || assert_contains "$output" "Execute"
 }
 
 test_ocdc_list_dispatches() {
   local output=$("$BIN_DIR/ocdc" list --help 2>&1)
-  assert_contains "$output" "dclist" || assert_contains "$output" "List"
+  assert_contains "$output" "ocdc-list" || assert_contains "$output" "List"
 }
 
 test_ocdc_go_dispatches() {
   local output=$("$BIN_DIR/ocdc" go --help 2>&1)
-  assert_contains "$output" "dcgo" || assert_contains "$output" "Navigate"
+  assert_contains "$output" "ocdc-go" || assert_contains "$output" "Navigate"
 }
 
 test_ocdc_unknown_command() {

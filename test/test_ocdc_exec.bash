@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration tests for dcexec command
+# Integration tests for ocdc-exec command
 #
 
 set -euo pipefail
@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/test_helper.bash"
 
 BIN_DIR="$(dirname "$SCRIPT_DIR")/bin"
 
-echo "Testing dcexec..."
+echo "Testing ocdc-exec..."
 echo ""
 
 # =============================================================================
@@ -37,33 +37,33 @@ teardown() {
 # Tests
 # =============================================================================
 
-test_dcexec_shows_help() {
-  local output=$("$BIN_DIR/dcexec" --help 2>&1)
+test_ocdc_exec_shows_help() {
+  local output=$("$BIN_DIR/ocdc" exec --help 2>&1)
   assert_contains "$output" "Usage:"
-  assert_contains "$output" "dcexec"
+  assert_contains "$output" "ocdc-exec"
 }
 
-test_dcexec_requires_command() {
+test_ocdc_exec_requires_command() {
   cd "$TEST_REPO"
   local output
-  if output=$("$BIN_DIR/dcexec" 2>&1); then
+  if output=$("$BIN_DIR/ocdc" exec 2>&1); then
     echo "Should have failed without command"
     return 1
   fi
   assert_contains "$output" "No command specified"
 }
 
-test_dcexec_errors_when_not_tracked() {
+test_ocdc_exec_errors_when_not_tracked() {
   cd "$TEST_REPO"
   local output
-  if output=$("$BIN_DIR/dcexec" echo hello 2>&1); then
+  if output=$("$BIN_DIR/ocdc" exec echo hello 2>&1); then
     echo "Should have failed for untracked workspace"
     return 1
   fi
   assert_contains "$output" "No devcontainer tracked"
 }
 
-test_dcexec_accepts_workspace_flag() {
+test_ocdc_exec_accepts_workspace_flag() {
   # Add a port assignment
   local real_repo=$(cd "$TEST_REPO" && pwd -P)
   cat > "$TEST_CACHE_DIR/ports.json" << EOF
@@ -78,7 +78,7 @@ EOF
   
   # This will fail because devcontainer isn't running, but it should get past the tracking check
   local output
-  output=$("$BIN_DIR/dcexec" --workspace "$TEST_REPO" echo hello 2>&1) || true
+  output=$("$BIN_DIR/ocdc" exec --workspace "$TEST_REPO" echo hello 2>&1) || true
   
   # Should not complain about tracking
   if [[ "$output" == *"No devcontainer tracked"* ]]; then
@@ -95,10 +95,10 @@ EOF
 echo "Command Usage Tests:"
 
 for test_func in \
-  test_dcexec_shows_help \
-  test_dcexec_requires_command \
-  test_dcexec_errors_when_not_tracked \
-  test_dcexec_accepts_workspace_flag
+  test_ocdc_exec_shows_help \
+  test_ocdc_exec_requires_command \
+  test_ocdc_exec_errors_when_not_tracked \
+  test_ocdc_exec_accepts_workspace_flag
 do
   setup
   run_test "${test_func#test_}" "$test_func"

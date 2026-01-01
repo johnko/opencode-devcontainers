@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration tests for dclist command
+# Integration tests for ocdc-list command
 #
 
 set -euo pipefail
@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/test_helper.bash"
 
 BIN_DIR="$(dirname "$SCRIPT_DIR")/bin"
 
-echo "Testing dclist..."
+echo "Testing ocdc-list..."
 echo ""
 
 # =============================================================================
@@ -29,18 +29,18 @@ teardown() {
 # Tests
 # =============================================================================
 
-test_dclist_shows_help() {
-  local output=$("$BIN_DIR/dclist" --help 2>&1)
-  assert_contains "$output" "dclist"
+test_ocdc_list_shows_help() {
+  local output=$("$BIN_DIR/ocdc" list --help 2>&1)
+  assert_contains "$output" "ocdc-list"
 }
 
-test_dclist_shows_empty_message() {
+test_ocdc_list_shows_empty_message() {
   echo '{}' > "$TEST_CACHE_DIR/ports.json"
-  local output=$("$BIN_DIR/dclist" 2>&1)
+  local output=$("$BIN_DIR/ocdc" list 2>&1)
   assert_contains "$output" "No devcontainer instances"
 }
 
-test_dclist_shows_registered_instance() {
+test_ocdc_list_shows_registered_instance() {
   cat > "$TEST_CACHE_DIR/ports.json" << 'EOF'
 {
   "/path/to/repo": {
@@ -52,13 +52,13 @@ test_dclist_shows_registered_instance() {
 }
 EOF
   
-  local output=$("$BIN_DIR/dclist" 2>&1)
+  local output=$("$BIN_DIR/ocdc" list 2>&1)
   assert_contains "$output" "13000"
   assert_contains "$output" "my-repo"
   assert_contains "$output" "main"
 }
 
-test_dclist_shows_multiple_instances() {
+test_ocdc_list_shows_multiple_instances() {
   cat > "$TEST_CACHE_DIR/ports.json" << 'EOF'
 {
   "/path/to/repo1": {
@@ -76,7 +76,7 @@ test_dclist_shows_multiple_instances() {
 }
 EOF
   
-  local output=$("$BIN_DIR/dclist" 2>&1)
+  local output=$("$BIN_DIR/ocdc" list 2>&1)
   assert_contains "$output" "13000"
   assert_contains "$output" "13001"
   assert_contains "$output" "repo1"
@@ -90,10 +90,10 @@ EOF
 echo "Command Usage Tests:"
 
 for test_func in \
-  test_dclist_shows_help \
-  test_dclist_shows_empty_message \
-  test_dclist_shows_registered_instance \
-  test_dclist_shows_multiple_instances
+  test_ocdc_list_shows_help \
+  test_ocdc_list_shows_empty_message \
+  test_ocdc_list_shows_registered_instance \
+  test_ocdc_list_shows_multiple_instances
 do
   setup
   run_test "${test_func#test_}" "$test_func"

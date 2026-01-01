@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration tests for dcup command
+# Integration tests for ocdc-up command
 #
 
 set -euo pipefail
@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/test_helper.bash"
 
 BIN_DIR="$(dirname "$SCRIPT_DIR")/bin"
 
-echo "Testing dcup..."
+echo "Testing ocdc-up..."
 echo ""
 
 # =============================================================================
@@ -53,23 +53,23 @@ teardown() {
 # Tests
 # =============================================================================
 
-test_dcup_shows_help() {
-  local output=$("$BIN_DIR/dcup" --help 2>&1)
+test_ocdc_up_shows_help() {
+  local output=$("$BIN_DIR/ocdc" up --help 2>&1)
   assert_contains "$output" "Usage:"
-  assert_contains "$output" "dcup"
+  assert_contains "$output" "ocdc-up"
 }
 
-test_dcup_fails_outside_git_repo() {
+test_ocdc_up_fails_outside_git_repo() {
   cd "$TEST_DIR"
   local output
-  if output=$("$BIN_DIR/dcup" 2>&1); then
+  if output=$("$BIN_DIR/ocdc" up 2>&1); then
     echo "Should have failed outside git repo"
     return 1
   fi
   assert_contains "$output" "Not in a git repository"
 }
 
-test_dcup_fails_without_devcontainer_json() {
+test_ocdc_up_fails_without_devcontainer_json() {
   # Create repo without devcontainer.json
   local bare_repo="$TEST_DIR/bare-repo"
   mkdir -p "$bare_repo"
@@ -77,42 +77,42 @@ test_dcup_fails_without_devcontainer_json() {
   
   cd "$bare_repo"
   local output
-  if output=$("$BIN_DIR/dcup" 2>&1); then
+  if output=$("$BIN_DIR/ocdc" up 2>&1); then
     echo "Should have failed without devcontainer.json"
     return 1
   fi
   assert_contains "$output" "No devcontainer.json found"
 }
 
-test_dcup_detects_workspace() {
+test_ocdc_up_detects_workspace() {
   cd "$TEST_REPO"
   # Use --no-open and capture output (will fail at devcontainer up, but that's ok)
-  local output=$("$BIN_DIR/dcup" --no-open 2>&1 || true)
+  local output=$("$BIN_DIR/ocdc" up --no-open 2>&1 || true)
   assert_contains "$output" "Workspace:"
   assert_contains "$output" "$TEST_REPO"
 }
 
-test_dcup_assigns_port() {
+test_ocdc_up_assigns_port() {
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcup" --no-open 2>&1 || true)
+  local output=$("$BIN_DIR/ocdc" up --no-open 2>&1 || true)
   assert_contains "$output" "Port mapping:"
   assert_contains "$output" "localhost:13"  # Port in 13000 range
 }
 
-test_dcup_creates_clone_for_branch() {
+test_ocdc_up_creates_clone_for_branch() {
   cd "$TEST_REPO"
   
   # Create a branch first
   git checkout -q -b test-branch
   git checkout -q main 2>/dev/null || git checkout -q master
   
-  local output=$("$BIN_DIR/dcup" test-branch --no-open 2>&1 || true)
+  local output=$("$BIN_DIR/ocdc" up test-branch --no-open 2>&1 || true)
   assert_contains "$output" "clone"
 }
 
-test_dcup_no_open_flag_works() {
+test_ocdc_up_no_open_flag_works() {
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcup" --no-open 2>&1 || true)
+  local output=$("$BIN_DIR/ocdc" up --no-open 2>&1 || true)
   # Should not contain "Opening" message
   if [[ "$output" == *"Opening in VS Code"* ]]; then
     echo "Should not attempt to open VS Code with --no-open"
@@ -121,7 +121,7 @@ test_dcup_no_open_flag_works() {
   return 0
 }
 
-test_dcup_override_sets_correct_workspace_folder() {
+test_ocdc_up_override_sets_correct_workspace_folder() {
   # Regression test: when using a branch clone, the override config must set
   # workspaceFolder to match the actual clone directory name, not the original
   # repo's hardcoded workspaceFolder value
@@ -144,8 +144,8 @@ EOF
   git checkout -q -b feature-xyz
   git checkout -q main 2>/dev/null || git checkout -q master
   
-  # Run dcup for the branch (will fail at devcontainer up, but creates override)
-  "$BIN_DIR/dcup" feature-xyz --no-open 2>&1 || true
+  # Run ocdc-up for the branch (will fail at devcontainer up, but creates override)
+  "$BIN_DIR/ocdc" up feature-xyz --no-open 2>&1 || true
   
   # Find the override file and verify workspaceFolder is correct
   local override_file=$(ls "$TEST_CACHE_DIR/overrides"/*.json 2>/dev/null | head -1)
@@ -162,7 +162,7 @@ EOF
   return 0
 }
 
-test_dcup_copies_gitignored_files_to_clone() {
+test_ocdc_up_copies_gitignored_files_to_clone() {
   # When creating a clone for a branch, files that exist locally but are
   # gitignored should be copied so the app can run (secrets, local config, etc.)
   # Directories with many files (>100) are skipped as they're likely dependencies.
@@ -222,8 +222,8 @@ EOF
   git checkout -q -b feature-secrets
   git checkout -q main 2>/dev/null || git checkout -q master
   
-  # Run dcup for the branch
-  local output=$("$BIN_DIR/dcup" feature-secrets --no-open 2>&1 || true)
+  # Run ocdc-up for the branch
+  local output=$("$BIN_DIR/ocdc" up feature-secrets --no-open 2>&1 || true)
   
   # Verify gitignored files were copied
   local clone_dir="$TEST_CLONES_DIR/test-repo/feature-secrets"
@@ -308,15 +308,15 @@ echo "Command Usage Tests:"
 
 # Run each test with setup/teardown
 for test_func in \
-  test_dcup_shows_help \
-  test_dcup_fails_outside_git_repo \
-  test_dcup_fails_without_devcontainer_json \
-  test_dcup_detects_workspace \
-  test_dcup_assigns_port \
-  test_dcup_creates_clone_for_branch \
-  test_dcup_no_open_flag_works \
-  test_dcup_override_sets_correct_workspace_folder \
-  test_dcup_copies_gitignored_files_to_clone
+  test_ocdc_up_shows_help \
+  test_ocdc_up_fails_outside_git_repo \
+  test_ocdc_up_fails_without_devcontainer_json \
+  test_ocdc_up_detects_workspace \
+  test_ocdc_up_assigns_port \
+  test_ocdc_up_creates_clone_for_branch \
+  test_ocdc_up_no_open_flag_works \
+  test_ocdc_up_override_sets_correct_workspace_folder \
+  test_ocdc_up_copies_gitignored_files_to_clone
 do
   setup
   run_test "${test_func#test_}" "$test_func"

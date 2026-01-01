@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration tests for dcgo command
+# Integration tests for ocdc-go command
 #
 
 set -euo pipefail
@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/test_helper.bash"
 
 BIN_DIR="$(dirname "$SCRIPT_DIR")/bin"
 
-echo "Testing dcgo..."
+echo "Testing ocdc-go..."
 echo ""
 
 # =============================================================================
@@ -36,44 +36,44 @@ teardown() {
 # Tests
 # =============================================================================
 
-test_dcgo_shows_help() {
-  local output=$("$BIN_DIR/dcgo" --help 2>&1)
+test_ocdc_go_shows_help() {
+  local output=$("$BIN_DIR/ocdc" go --help 2>&1)
   assert_contains "$output" "Usage:"
-  assert_contains "$output" "dcgo"
+  assert_contains "$output" "ocdc-go"
 }
 
-test_dcgo_lists_clones_when_no_args() {
+test_ocdc_go_lists_clones_when_no_args() {
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcgo" 2>&1)
+  local output=$("$BIN_DIR/ocdc" go 2>&1)
   assert_contains "$output" "Available clones"
 }
 
-test_dcgo_shows_no_clones_message() {
+test_ocdc_go_shows_no_clones_message() {
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcgo" 2>&1)
+  local output=$("$BIN_DIR/ocdc" go 2>&1)
   assert_contains "$output" "No clones found"
 }
 
-test_dcgo_lists_existing_clones() {
+test_ocdc_go_lists_existing_clones() {
   # Create a clone directory
   mkdir -p "$TEST_CLONES_DIR/test-repo/feature-branch"
   
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcgo" 2>&1)
+  local output=$("$BIN_DIR/ocdc" go 2>&1)
   assert_contains "$output" "feature-branch"
 }
 
-test_dcgo_errors_on_missing_clone() {
+test_ocdc_go_errors_on_missing_clone() {
   cd "$TEST_REPO"
   local output
-  if output=$("$BIN_DIR/dcgo" nonexistent-branch 2>&1); then
+  if output=$("$BIN_DIR/ocdc" go nonexistent-branch 2>&1); then
     echo "Should have failed for missing clone"
     return 1
   fi
   assert_contains "$output" "Clone not found"
 }
 
-test_dcgo_outputs_cd_command() {
+test_ocdc_go_outputs_cd_command() {
   # Create a clone directory
   mkdir -p "$TEST_CLONES_DIR/test-repo/feature-branch"
   
@@ -81,15 +81,15 @@ test_dcgo_outputs_cd_command() {
   unset TERM_PROGRAM
   
   cd "$TEST_REPO"
-  local output=$("$BIN_DIR/dcgo" feature-branch 2>&1)
+  local output=$("$BIN_DIR/ocdc" go feature-branch 2>&1)
   assert_contains "$output" "cd "
   assert_contains "$output" "feature-branch"
 }
 
-test_dcgo_fails_outside_repo_without_branch() {
+test_ocdc_go_fails_outside_repo_without_branch() {
   cd "$TEST_DIR"
   local output
-  if output=$("$BIN_DIR/dcgo" 2>&1); then
+  if output=$("$BIN_DIR/ocdc" go 2>&1); then
     echo "Should have failed outside git repo"
     return 1
   fi
@@ -103,13 +103,13 @@ test_dcgo_fails_outside_repo_without_branch() {
 echo "Command Usage Tests:"
 
 for test_func in \
-  test_dcgo_shows_help \
-  test_dcgo_lists_clones_when_no_args \
-  test_dcgo_shows_no_clones_message \
-  test_dcgo_lists_existing_clones \
-  test_dcgo_errors_on_missing_clone \
-  test_dcgo_outputs_cd_command \
-  test_dcgo_fails_outside_repo_without_branch
+  test_ocdc_go_shows_help \
+  test_ocdc_go_lists_clones_when_no_args \
+  test_ocdc_go_shows_no_clones_message \
+  test_ocdc_go_lists_existing_clones \
+  test_ocdc_go_errors_on_missing_clone \
+  test_ocdc_go_outputs_cd_command \
+  test_ocdc_go_fails_outside_repo_without_branch
 do
   setup
   run_test "${test_func#test_}" "$test_func"
