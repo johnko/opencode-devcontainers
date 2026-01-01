@@ -57,6 +57,12 @@ ocdc down --all         # Stop all
 2. **Ports**: Ephemeral override with unique port, passed via `--override-config`.
 3. **Tracking**: `~/.cache/ocdc/ports.json`
 
+## Poll Configuration
+
+ocdc can automatically poll external sources (GitHub PRs, Linear issues) and create devcontainer sessions with OpenCode to work on them.
+
+Poll configs live in `~/.config/ocdc/polls/`. See the example configs in [`share/ocdc/examples/`](share/ocdc/examples/) for the full schema and available template variables.
+
 ## License
 
 MIT
