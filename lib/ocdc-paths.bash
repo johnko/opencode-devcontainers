@@ -47,6 +47,16 @@ ocdc_resolve_path() {
   (cd "$path" 2>/dev/null && pwd -P) || echo "$path"
 }
 
+# Get the version of ocdc from git tags or package.json
+# Returns "dev" if not in a release context
+ocdc_version() {
+  if [[ -n "${OCDC_VERSION:-}" ]]; then
+    echo "$OCDC_VERSION"
+  else
+    echo "dev"
+  fi
+}
+
 # Ensure all required directories exist
 ocdc_ensure_dirs() {
   mkdir -p "$OCDC_CONFIG_DIR"
