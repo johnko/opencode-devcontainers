@@ -44,6 +44,69 @@ YELLOW='\033[33m'
 BG_BLUE='\033[44m'
 BG_RESET='\033[49m'
 
+# Layout configuration
+MIN_REPO_WIDTH=15
+MIN_BRANCH_WIDTH=15
+MAX_CONTENT_WIDTH=120
+PORT_WIDTH=6
+STATUS_WIDTH=8
+
+# Layout variables (set by calculate_layout)
+REPO_WIDTH=$MIN_REPO_WIDTH
+BRANCH_WIDTH=$MIN_BRANCH_WIDTH
+LEFT_PADDING=2
+TOP_PADDING=0
+
+# Calculate layout based on terminal dimensions
+# Sets: REPO_WIDTH, BRANCH_WIDTH, LEFT_PADDING, TOP_PADDING
+# Args: cols [rows] [instance_count]
+calculate_layout() {
+  local cols="${1:-$(tput cols 2>/dev/null || echo 80)}"
+  local rows="${2:-$(tput lines 2>/dev/null || echo 24)}"
+  local instance_count="${3:-0}"
+  
+  # Fixed widths: port(6) + status(8) + spaces between columns(6) + selection marker(2)
+  local fixed_width=$((PORT_WIDTH + STATUS_WIDTH + 6 + 2))
+  
+  # Available space for repo + branch columns
+  local available=$((cols - fixed_width - 4))  # 4 for minimal margins
+  
+  # Guard against negative available space on very narrow terminals
+  [[ $available -lt 0 ]] && available=0
+  
+  # Cap available space to max content width
+  if [[ $available -gt $((MAX_CONTENT_WIDTH - fixed_width)) ]]; then
+    available=$((MAX_CONTENT_WIDTH - fixed_width))
+  fi
+  
+  # Distribute space: 40% to repo, 60% to branch (branch names are often longer)
+  REPO_WIDTH=$((available * 40 / 100))
+  BRANCH_WIDTH=$((available * 60 / 100))
+  
+  # Enforce minimums
+  [[ $REPO_WIDTH -lt $MIN_REPO_WIDTH ]] && REPO_WIDTH=$MIN_REPO_WIDTH
+  [[ $BRANCH_WIDTH -lt $MIN_BRANCH_WIDTH ]] && BRANCH_WIDTH=$MIN_BRANCH_WIDTH
+  
+  # Calculate horizontal centering padding for wide terminals
+  local content_width=$((PORT_WIDTH + REPO_WIDTH + BRANCH_WIDTH + STATUS_WIDTH + 6))
+  if [[ $cols -gt $((content_width + 4)) ]]; then
+    LEFT_PADDING=$(( (cols - content_width) / 2 ))
+  else
+    LEFT_PADDING=2
+  fi
+  
+  # Calculate vertical centering
+  # Content height: header(2) + table_header(2) + instances + path(2) + footer(4)
+  local content_height=$((2 + 2 + instance_count + 2 + 4))
+  [[ $instance_count -eq 0 ]] && content_height=10  # Empty state
+  
+  if [[ $rows -gt $((content_height + 4)) ]]; then
+    TOP_PADDING=$(( (rows - content_height) / 3 ))  # 1/3 from top looks better than centered
+  else
+    TOP_PADDING=0
+  fi
+}
+
 # Detect if running in VS Code integrated terminal
 is_vscode_terminal() {
   [[ -n "${TERM_PROGRAM:-}" ]] && [[ "$TERM_PROGRAM" == "vscode" ]]
@@ -117,32 +180,77 @@ load_instances() {
   fi
 }
 
+# Generate padding string
+make_padding() {
+  local n="$1"
+  printf "%${n}s" ""
+}
+
+# Generate separator line of given width
+make_separator() {
+  local n="$1"
+  local sep=""
+  for ((i=0; i<n; i++)); do
+    sep+="─"
+  done
+  echo "$sep"
+}
+
+# Get terminal dimensions (prefer stty over tput for accuracy)
+get_terminal_size() {
+  local size
+  if size=$(stty size 2>/dev/null); then
+    echo "$size"
+  elif [[ -n "${LINES:-}" ]] && [[ -n "${COLUMNS:-}" ]]; then
+    echo "$LINES $COLUMNS"
+  else
+    echo "$(tput lines 2>/dev/null || echo 24) $(tput cols 2>/dev/null || echo 80)"
+  fi
+}
+
 # Draw the TUI
 draw_screen() {
   clear
-  local cols=$(tput cols)
+  local term_size
+  term_size=$(get_terminal_size)
+  local rows=${term_size%% *}
+  local cols=${term_size##* }
   
-  # Header
-  echo -e "${BOLD}${CYAN}      ⚡ ocdc ⚡${RESET}"
+  # Calculate responsive layout
+  calculate_layout "$cols" "$rows" "${#TYPES[@]}"
+  local pad=$(make_padding $LEFT_PADDING)
+  
+  # Vertical padding for tall terminals
+  for ((i=0; i<TOP_PADDING; i++)); do
+    echo ""
+  done
+  
+  # Header (centered)
+  local header_pad=$(( (cols - 14) / 2 ))
+  [[ $header_pad -lt 2 ]] && header_pad=2
+  printf "%${header_pad}s" ""
+  echo -e "${BOLD}${CYAN}⚡ ocdc ⚡${RESET}"
   echo ""
   
   if [[ ${#TYPES[@]} -eq 0 ]]; then
-    echo "  No devcontainer instances or clones found."
+    echo "${pad}No devcontainer instances or clones found."
     echo ""
-    echo -e "  ${DIM}Press${RESET} ${BOLD}n${RESET} ${DIM}to create a new devcontainer${RESET}"
+    echo -e "${pad}${DIM}Press${RESET} ${BOLD}n${RESET} ${DIM}to create a new devcontainer${RESET}"
   else
-    # Table header
-    printf "  ${BOLD}%-6s  %-20s  %-16s  %-8s${RESET}\n" "PORT" "REPO" "BRANCH" "STATUS"
-    printf "  ${DIM}%-6s  %-20s  %-16s  %-8s${RESET}\n" "──────" "────────────────────" "────────────────" "────────"
+    # Table header with dynamic widths
+    printf "${pad}${BOLD}%-${PORT_WIDTH}s  %-${REPO_WIDTH}s  %-${BRANCH_WIDTH}s  %-${STATUS_WIDTH}s${RESET}\n" \
+      "PORT" "REPO" "BRANCH" "STATUS"
+    printf "${pad}${DIM}%-${PORT_WIDTH}s  %-${REPO_WIDTH}s  %-${BRANCH_WIDTH}s  %-${STATUS_WIDTH}s${RESET}\n" \
+      "$(make_separator $PORT_WIDTH)" "$(make_separator $REPO_WIDTH)" "$(make_separator $BRANCH_WIDTH)" "$(make_separator $STATUS_WIDTH)"
     
     # Instances
     for i in "${!TYPES[@]}"; do
-      local prefix="  "
+      local prefix="${pad}"
       local suffix=""
       
       # Highlight selected row
       if [[ $i -eq $SELECTED ]]; then
-        prefix="${BG_BLUE}${BOLD}▸ "
+        prefix="${pad}${BG_BLUE}${BOLD}▸ "
         suffix="${RESET}"
       fi
       
@@ -154,34 +262,35 @@ draw_screen() {
         ORPHAN) status_color="${YELLOW}" ;;
       esac
       
-      # Truncate long values
+      # Truncate long values to fit columns
       local repo="${REPOS[$i]}"
       local branch="${BRANCHES[$i]}"
-      [[ ${#repo} -gt 20 ]] && repo="${repo:0:17}..."
-      [[ ${#branch} -gt 16 ]] && branch="${branch:0:13}..."
+      [[ ${#repo} -gt $REPO_WIDTH ]] && repo="${repo:0:$((REPO_WIDTH - 3))}..."
+      [[ ${#branch} -gt $BRANCH_WIDTH ]] && branch="${branch:0:$((BRANCH_WIDTH - 3))}..."
       
-      printf "${prefix}%-6s  %-20s  %-16s  ${status_color}%-8s${RESET}${suffix}\n" \
+      printf "${prefix}%-${PORT_WIDTH}s  %-${REPO_WIDTH}s  %-${BRANCH_WIDTH}s  ${status_color}%-${STATUS_WIDTH}s${RESET}${suffix}\n" \
         "${PORTS[$i]}" "$repo" "$branch" "${STATUSES[$i]}"
     done
     
     # Show workspace path for selected item
     echo ""
-    echo -e "  ${DIM}Path: ${WORKSPACES[$SELECTED]}${RESET}"
+    echo -e "${pad}${DIM}Path: ${WORKSPACES[$SELECTED]}${RESET}"
   fi
   
   # Footer with keybindings
+  local footer_width=$((PORT_WIDTH + REPO_WIDTH + BRANCH_WIDTH + STATUS_WIDTH + 6))
   echo ""
-  echo -e "  ${DIM}────────────────────────────────────────${RESET}"
-  echo -e "  ${BOLD}n${RESET}${DIM}ew${RESET}  ${BOLD}d${RESET}${DIM}elete${RESET}  ${BOLD}D${RESET}${DIM}elete-all${RESET}  ${BOLD}r${RESET}${DIM}efresh${RESET}  ${BOLD}q${RESET}${DIM}uit${RESET}"
+  echo -e "${pad}${DIM}$(make_separator $footer_width)${RESET}"
+  echo -e "${pad}${BOLD}n${RESET}${DIM}ew${RESET}  ${BOLD}d${RESET}${DIM}elete${RESET}  ${BOLD}D${RESET}${DIM}elete-all${RESET}  ${BOLD}r${RESET}${DIM}efresh${RESET}  ${BOLD}q${RESET}${DIM}uit${RESET}"
   
   if [[ ${#TYPES[@]} -gt 0 ]]; then
     local status="${STATUSES[$SELECTED]}"
     if [[ "$status" == "UP" ]]; then
-      echo -e "  ${DIM}↑/↓ navigate  Enter=open in VS Code${RESET}"
+      echo -e "${pad}${DIM}↑/↓ navigate  Enter=open in VS Code${RESET}"
     elif [[ "$status" == "DOWN" ]]; then
-      echo -e "  ${DIM}↑/↓ navigate  Enter=start container${RESET}"
+      echo -e "${pad}${DIM}↑/↓ navigate  Enter=start container${RESET}"
     else
-      echo -e "  ${DIM}↑/↓ navigate  Enter=open directory${RESET}"
+      echo -e "${pad}${DIM}↑/↓ navigate  Enter=open directory${RESET}"
     fi
   fi
 }
@@ -316,11 +425,14 @@ main() {
   tput civis
   trap 'tput cnorm; clear' EXIT
   
+  # Redraw on terminal resize
+  trap 'draw_screen' WINCH
+  
   while true; do
     draw_screen
     
-    # Read single key
-    read -rsn1 key
+    # Read single key with timeout to allow resize redraw
+    read -rsn1 -t 1 key || continue
     
     # Handle escape sequences (arrows)
     if [[ "$key" == $'\x1b' ]]; then
