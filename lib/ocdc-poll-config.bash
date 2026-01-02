@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# ocdc-poll-config.bash - Poll configuration schema and validation
+# ocdc-poll-config.bash - Poll configuration management
 #
-# This library provides functions for loading, validating, and working
-# with poll configuration files.
+# Main entry point for poll configuration. Sources modular components
+# and provides config access, validation, and listing functions.
 #
 # Usage:
 #   source "$(dirname "$0")/ocdc-poll-config.bash"
@@ -11,67 +11,29 @@
 #
 # Required: ruby (for YAML parsing), jq (for JSON manipulation)
 
+# Prevent multiple sourcing
+[[ -n "${_OCDC_POLL_CONFIG_LOADED:-}" ]] && return 0
+_OCDC_POLL_CONFIG_LOADED=1
+
+# =============================================================================
+# Module Loading
+# =============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Source paths for OCDC_POLLS_DIR if available
 if [[ -z "${OCDC_POLLS_DIR:-}" ]]; then
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   if [[ -f "${SCRIPT_DIR}/ocdc-paths.bash" ]]; then
     source "${SCRIPT_DIR}/ocdc-paths.bash"
   fi
   OCDC_POLLS_DIR="${OCDC_POLLS_DIR:-${OCDC_CONFIG_DIR:-$HOME/.config/ocdc}/polls}"
 fi
 
-# =============================================================================
-# YAML to JSON conversion
-# =============================================================================
-
-# Convert YAML file to JSON using Ruby's built-in YAML support
-# Outputs directly to stdout - pipe to jq for processing
-# Usage: _yaml_to_json "/path/to/file.yaml"
-_yaml_to_json() {
-  local yaml_file="$1"
-  
-  if [[ ! -f "$yaml_file" ]]; then
-    echo "Error: File not found: $yaml_file" >&2
-    return 1
-  fi
-  
-  # Pass filename as argument to avoid shell injection
-  ruby -ryaml -rjson -e 'puts JSON.generate(YAML.load_file(ARGV[0]))' "$yaml_file" 2>/dev/null
-}
-
-# Get a field from YAML file using jq path
-# Pipes directly from ruby to jq to avoid bash variable issues with multiline strings
-# Usage: _yaml_get "/path/to/file.yaml" ".field.subfield"
-_yaml_get() {
-  local yaml_file="$1"
-  local jq_path="$2"
-  
-  if [[ ! -f "$yaml_file" ]]; then
-    echo "Error: File not found: $yaml_file" >&2
-    return 1
-  fi
-  
-  # Pass filename as argument to avoid shell injection
-  ruby -ryaml -rjson -e 'puts JSON.generate(YAML.load_file(ARGV[0]))' "$yaml_file" 2>/dev/null | \
-    jq -r "$jq_path | if . == null then empty else . end" 2>/dev/null
-}
-
-# Get a field from YAML with a default value
-# Usage: _yaml_get_default "/path/to/file.yaml" ".field" "default"
-_yaml_get_default() {
-  local yaml_file="$1"
-  local jq_path="$2"
-  local default="$3"
-  
-  local value
-  value=$(_yaml_get "$yaml_file" "$jq_path")
-  
-  if [[ -z "$value" ]] || [[ "$value" == "null" ]]; then
-    echo "$default"
-  else
-    echo "$value"
-  fi
-}
+# Source modular components
+source "${SCRIPT_DIR}/ocdc-yaml.bash"
+source "${SCRIPT_DIR}/ocdc-poll-defaults.bash"
+source "${SCRIPT_DIR}/ocdc-poll-fetch.bash"
+source "${SCRIPT_DIR}/ocdc-poll-filter.bash"
 
 # =============================================================================
 # Schema Validation
@@ -87,9 +49,7 @@ poll_config_validate_schema() {
   
   # Find schema file if not provided
   if [[ -z "$schema_file" ]]; then
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    schema_file="$(dirname "$script_dir")/share/ocdc/poll-config.schema.json"
+    schema_file="$(dirname "$SCRIPT_DIR")/share/ocdc/poll-config.schema.json"
   fi
   
   # Check if check-jsonschema is available
@@ -143,30 +103,40 @@ poll_config_validate() {
     errors+=("Missing required field: id")
   fi
   
-  # Required: fetch_command
-  local fetch_cmd
-  fetch_cmd=$(_yaml_get "$config_file" ".fetch_command")
-  if [[ -z "$fetch_cmd" ]]; then
-    errors+=("Missing required field: fetch_command")
+  # Required: source_type (must be one of the valid types)
+  local source_type
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  if [[ -z "$source_type" ]]; then
+    errors+=("Missing required field: source_type")
+  elif [[ "$source_type" != "linear_issue" ]] && [[ "$source_type" != "github_issue" ]] && [[ "$source_type" != "github_pr" ]]; then
+    errors+=("Invalid source_type: $source_type (must be linear_issue, github_issue, or github_pr)")
   fi
   
-  # Required: item_mapping.key
-  local key_mapping
-  key_mapping=$(_yaml_get "$config_file" ".item_mapping.key")
-  if [[ -z "$key_mapping" ]]; then
-    errors+=("Missing required field: item_mapping.key")
+  # Required: repo_filters (must be non-empty array)
+  local repo_filters_count
+  repo_filters_count=$(_yaml_get "$config_file" ".repo_filters | length")
+  if [[ -z "$repo_filters_count" ]] || [[ "$repo_filters_count" == "0" ]]; then
+    errors+=("Missing or empty required field: repo_filters")
   fi
   
-  # Required: prompt with template or file
-  local prompt_template prompt_file
-  prompt_template=$(_yaml_get "$config_file" ".prompt.template")
-  prompt_file=$(_yaml_get "$config_file" ".prompt.file")
+  # Each repo_filter must have repo_path
+  local missing_paths
+  missing_paths=$(_yaml_get "$config_file" '[.repo_filters[] | select(.repo_path == null or .repo_path == "")] | length')
+  if [[ -n "$missing_paths" ]] && [[ "$missing_paths" != "0" ]]; then
+    errors+=("All repo_filters must have repo_path")
+  fi
   
-  if [[ -z "$prompt_template" ]] && [[ -z "$prompt_file" ]]; then
-    errors+=("prompt must have either 'template' or 'file'")
+  # Mutual exclusion: fetch and fetch_command
+  local has_fetch has_fetch_command
+  has_fetch=$(_yaml_get "$config_file" ".fetch")
+  has_fetch_command=$(_yaml_get "$config_file" ".fetch_command")
+  if [[ -n "$has_fetch" ]] && [[ -n "$has_fetch_command" ]]; then
+    errors+=("fetch and fetch_command are mutually exclusive")
   fi
   
   # If prompt.file is specified, check it exists (relative to config dir)
+  local prompt_file
+  prompt_file=$(_yaml_get "$config_file" ".prompt.file")
   if [[ -n "$prompt_file" ]]; then
     local config_dir
     config_dir=$(dirname "$config_file")
@@ -174,13 +144,6 @@ poll_config_validate() {
     if [[ ! -f "$full_prompt_path" ]]; then
       errors+=("Prompt file not found: $prompt_file (looked in $full_prompt_path)")
     fi
-  fi
-  
-  # Required: session.name_template
-  local session_name
-  session_name=$(_yaml_get "$config_file" ".session.name_template")
-  if [[ -z "$session_name" ]]; then
-    errors+=("Missing required field: session.name_template")
   fi
   
   # Report errors
@@ -216,6 +179,122 @@ poll_config_get_with_default() {
   local default="$3"
   
   _yaml_get_default "$config_file" "$jq_path" "$default"
+}
+
+# Get repo filters as JSON
+# Usage: poll_config_get_repo_filters "/path/to/config.yaml"
+poll_config_get_repo_filters() {
+  local config_file="$1"
+  _yaml_to_json "$config_file" | jq -c '.repo_filters // []'
+}
+
+# =============================================================================
+# Effective Config (with defaults)
+# =============================================================================
+
+# Get the effective fetch command (built from fetch options or fetch_command)
+# Usage: poll_config_get_effective_fetch_command "/path/to/config.yaml"
+poll_config_get_effective_fetch_command() {
+  local config_file="$1"
+  
+  # Check for explicit fetch_command first
+  local fetch_command
+  fetch_command=$(_yaml_get "$config_file" ".fetch_command")
+  if [[ -n "$fetch_command" ]]; then
+    echo "$fetch_command"
+    return 0
+  fi
+  
+  # Build from source_type and fetch options
+  local source_type fetch_options
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  fetch_options=$(_yaml_to_json "$config_file" | jq -c '.fetch // null')
+  
+  poll_config_build_fetch_command "$source_type" "$fetch_options"
+}
+
+# Get the effective item mapping (merged with defaults)
+# Usage: poll_config_get_effective_item_mapping "/path/to/config.yaml"
+poll_config_get_effective_item_mapping() {
+  local config_file="$1"
+  
+  local source_type
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  
+  local defaults
+  defaults=$(poll_config_get_default_item_mapping "$source_type")
+  
+  local custom
+  custom=$(_yaml_to_json "$config_file" | jq -c '.item_mapping // {}')
+  
+  # Merge custom over defaults
+  echo "$defaults" | jq --argjson custom "$custom" '. * $custom'
+}
+
+# Get the effective prompt template (or default)
+# Usage: poll_config_get_effective_prompt "/path/to/config.yaml"
+poll_config_get_effective_prompt() {
+  local config_file="$1"
+  
+  # Check for inline template first
+  local template
+  template=$(_yaml_get "$config_file" ".prompt.template")
+  if [[ -n "$template" ]]; then
+    echo "$template"
+    return 0
+  fi
+  
+  # Check for file reference
+  local prompt_file
+  prompt_file=$(_yaml_get "$config_file" ".prompt.file")
+  if [[ -n "$prompt_file" ]]; then
+    local config_dir
+    config_dir=$(dirname "$config_file")
+    local full_path="$config_dir/$prompt_file"
+    if [[ -f "$full_path" ]]; then
+      cat "$full_path"
+      return 0
+    fi
+  fi
+  
+  # Return default
+  local source_type
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  poll_config_get_default_prompt "$source_type"
+}
+
+# Get the effective session name template (or default)
+# Usage: poll_config_get_effective_session_name "/path/to/config.yaml"
+poll_config_get_effective_session_name() {
+  local config_file="$1"
+  
+  local session_name
+  session_name=$(_yaml_get "$config_file" ".session.name_template")
+  if [[ -n "$session_name" ]]; then
+    echo "$session_name"
+    return 0
+  fi
+  
+  local source_type
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  poll_config_get_default_session_name "$source_type"
+}
+
+# Get the effective agent (or default)
+# Usage: poll_config_get_effective_agent "/path/to/config.yaml"
+poll_config_get_effective_agent() {
+  local config_file="$1"
+  
+  local agent
+  agent=$(_yaml_get "$config_file" ".session.agent")
+  if [[ -n "$agent" ]]; then
+    echo "$agent"
+    return 0
+  fi
+  
+  local source_type
+  source_type=$(_yaml_get "$config_file" ".source_type")
+  poll_config_get_default_agent "$source_type"
 }
 
 # Get the prompt content from a config (handles both template and file)
