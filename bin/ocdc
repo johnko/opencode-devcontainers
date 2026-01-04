@@ -24,11 +24,10 @@
 
 set -euo pipefail
 
-VERSION="3.4.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${SCRIPT_DIR}/../lib"
 
-# Source paths library for OCDC_* variables
+# Source paths library for OCDC_* variables and ocdc_version function
 source "${LIB_DIR}/ocdc-paths.bash" 2>/dev/null || true
 
 # Plugin paths
@@ -46,7 +45,7 @@ show_version() {
  \___/ \___\___/ \___|
       ⚡
 EOF
-  echo "  ocdc v$VERSION"
+  echo "  ocdc v$(ocdc_version)"
 }
 
 # Show help
