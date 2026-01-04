@@ -1286,21 +1286,17 @@ can_run_integration_tests() {
   return 0
 }
 
-# Setup isolated environment for integration tests
-# Uses temp directory for opencode working dir to isolate session database
+# Setup for integration tests
+# Note: opencode run creates NEW sessions by default, so no isolation is needed.
+# The -c flag means --continue (continue last session), NOT config directory.
+# These functions are kept as no-ops for future use if OpenCode adds isolation support.
 setup_integration_env() {
-  # Create a temp working directory for opencode to store its .opencode/ data
-  # This prevents test sessions from polluting the user's real session list
-  INTEGRATION_WORKDIR=$(mktemp -d)
-  export INTEGRATION_WORKDIR
+  : # No-op - opencode run creates new sessions by default
 }
 
-# Cleanup isolated environment after integration tests
+# Cleanup after integration tests
 cleanup_integration_env() {
-  if [[ -n "${INTEGRATION_WORKDIR:-}" ]] && [[ -d "$INTEGRATION_WORKDIR" ]]; then
-    rm -rf "$INTEGRATION_WORKDIR"
-  fi
-  unset INTEGRATION_WORKDIR
+  : # No-op - test sessions remain in opencode session list but are harmless
 }
 
 # =============================================================================
@@ -1338,11 +1334,10 @@ test_fresh_plugin_installation() {
     # Run opencode once with no plugins to initialize node_modules
     # Use temp workdir to avoid polluting real session list
     local init_workdir
-    init_workdir=$(mktemp -d)
     mkdir -p "$real_home/.config/opencode"
     echo '{"plugin":[]}' > "$real_home/.config/opencode/opencode.json"
-    perl -e 'alarm 60; exec @ARGV' opencode -c "$init_workdir" run "say ok" >/dev/null 2>&1 || true
-    rm -rf "$init_workdir"
+    # Run opencode to initialize node_modules (creates new session, doesn't continue existing)
+    perl -e 'alarm 60; exec @ARGV' opencode run "say ok" >/dev/null 2>&1 || true
     
     if [[ ! -d "$real_home/.config/opencode/node_modules/@opencode-ai" ]]; then
       echo "SKIP: opencode failed to initialize node_modules"
@@ -1395,12 +1390,10 @@ test_fresh_plugin_installation() {
   
   # Test that opencode can start and load the plugin
   # Use a simple prompt that should work quickly
-  # Use temp workdir to avoid polluting real session list
-  local test_workdir output
-  test_workdir=$(mktemp -d)
-  output=$(perl -e 'alarm 30; exec @ARGV' opencode -c "$test_workdir" run "Say the word OK and nothing else" 2>&1)
+  # Note: opencode run creates a NEW session by default (no --continue/-c flag)
+  local output
+  output=$(perl -e 'alarm 30; exec @ARGV' opencode run "Say the word OK and nothing else" 2>&1)
   local exit_code=$?
-  rm -rf "$test_workdir"
   
   # Check results
   if [[ $exit_code -ne 0 ]]; then
@@ -1444,17 +1437,13 @@ run_with_timeout() {
 }
 
 # Run opencode and capture output (with timeout)
-# Uses INTEGRATION_WORKDIR to isolate session database from real sessions
+# Note: opencode run creates a NEW session by default, so no special isolation needed
+# The -c flag means --continue (continue last session), NOT config directory
 run_opencode() {
   local prompt="$1"
   local timeout="${2:-60}"
   
-  # Use -c to set working directory, isolating the .opencode/ database
-  if [[ -n "${INTEGRATION_WORKDIR:-}" ]]; then
-    run_with_timeout "$timeout" opencode -c "$INTEGRATION_WORKDIR" run --format json "$prompt"
-  else
-    run_with_timeout "$timeout" opencode run --format json "$prompt"
-  fi
+  run_with_timeout "$timeout" opencode run --format json "$prompt"
 }
 
 # Extract text content from opencode JSON output
@@ -1482,8 +1471,8 @@ test_opencode_starts_within_timeout() {
   start_time=$(date +%s)
   
   # Use a short timeout - if plugin hangs, this will fail
-  # Use INTEGRATION_WORKDIR to isolate session database
-  output=$(run_with_timeout 10 opencode -c "$INTEGRATION_WORKDIR" run --format json "Say hi" 2>&1)
+  # Note: opencode run creates a NEW session (no -c/--continue flag)
+  output=$(run_with_timeout 10 opencode run --format json "Say hi" 2>&1)
   local exit_code=$?
   
   end_time=$(date +%s)
