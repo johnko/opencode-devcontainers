@@ -33,12 +33,12 @@ Target a devcontainer clone for command execution in this OpenCode session.
 ## Behavior
 
 When a devcontainer is targeted:
-- Most commands run inside the container via `ocdc exec`
+- Most commands run inside the container automatically
 - Git, file reading, and editors run on host
 - Prefix with `HOST:` to force host execution
 
-## Related
-
-- `ocdc up <branch>` - Create and start a devcontainer clone
-- `ocdc list` - List all devcontainer instances
-- `ocdc down` - Stop a devcontainer
+The plugin handles:
+- Creating shallow clones for each branch
+- Auto-assigning ports from configurable range (13000-13099)
+- Starting/stopping devcontainers as needed
+- Routing commands to the correct container
