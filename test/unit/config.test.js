@@ -169,7 +169,15 @@ describe('generateOverrideConfig', () => {
     assert.ok(override.name.includes('13003'))
   })
 
-  test('sets correct workspaceFolder', async () => {
+  test('sets correct workspaceFolder using repoName', async () => {
+    const workspace = join(testDir, 'workspace')
+    const overridePath = await generateOverrideConfig(workspace, 13004, 'myrepo')
+    
+    const override = JSON.parse(readFileSync(overridePath, 'utf-8'))
+    assert.strictEqual(override.workspaceFolder, '/workspaces/myrepo')
+  })
+
+  test('falls back to basename when repoName not provided', async () => {
     const workspace = join(testDir, 'workspace')
     const overridePath = await generateOverrideConfig(workspace, 13004)
     

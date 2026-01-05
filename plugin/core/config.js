@@ -157,12 +157,13 @@ function removePortArgs(runArgs) {
  * 
  * @param {string} workspace - Workspace path
  * @param {number} port - External port to use
+ * @param {string} [repoName] - Repository name for workspaceFolder (defaults to basename of workspace)
  * @returns {Promise<string>} Path to generated override config
  */
-export async function generateOverrideConfig(workspace, port) {
+export async function generateOverrideConfig(workspace, port, repoName) {
   const baseConfig = await readDevcontainerJson(workspace) || {}
   const internalPort = detectInternalPort(baseConfig)
-  const workspaceName = basename(workspace)
+  const workspaceName = repoName || basename(workspace)
 
   // Build override config
   // Remove forwardPorts and appPort to prevent devcontainer CLI from setting up

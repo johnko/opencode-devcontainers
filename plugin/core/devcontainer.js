@@ -184,7 +184,7 @@ export async function up(workspaceOrBranch, options = {}) {
   const port = portAllocation.port
 
   // Generate override config
-  const overridePath = await generateOverrideConfig(workspace, port)
+  const overridePath = await generateOverrideConfig(workspace, port, repoName)
 
   // Build command args
   const args = buildUpArgs(workspace, overridePath, {
