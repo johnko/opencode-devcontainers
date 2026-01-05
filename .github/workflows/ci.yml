@@ -38,9 +38,8 @@ jobs:
 
       - name: Setup opencode plugin
         run: |
-          mkdir -p ~/.config/opencode/plugins/opencode-devcontainers/command
-          cp plugin/index.js plugin/helpers.js ~/.config/opencode/plugins/opencode-devcontainers/
-          cp plugin/command/devcontainer.md ~/.config/opencode/plugins/opencode-devcontainers/command/
+          mkdir -p ~/.config/opencode/plugins
+          cp -r plugin ~/.config/opencode/plugins/opencode-devcontainers
           mkdir -p ~/.config/opencode
           cat > ~/.config/opencode/opencode.json << 'EOF'
           {
@@ -50,7 +49,7 @@ jobs:
           EOF
 
       - name: Run tests
-        run: ./test/run_tests.bash
+        run: npm test
 
   release:
     needs: test
