@@ -101,7 +101,7 @@ function buildDevcontainerExecCommand(workspace, command) {
 
 // ============ Plugin Export ============
 
-export const OCDC = async ({ client }) => {
+export const devcontainers = async ({ client }) => {
   // Install command file if needed (don't block on slow API)
   runWithTimeout(() => installCommand(client), INIT_TIMEOUT_MS)
   
@@ -111,7 +111,7 @@ export const OCDC = async ({ client }) => {
   return {
     tool: {
       // Execute command in devcontainer
-      ocdc_exec: tool({
+      devcontainer_exec: tool({
         description: "Execute a command in the current devcontainer context. Use this when you need to run commands inside the container.",
         args: {
           command: tool.schema.string().describe("Command to execute"),
@@ -144,11 +144,11 @@ export const OCDC = async ({ client }) => {
       }),
       
       // Interactive command for manual devcontainer targeting
-      ocdc: tool({
-        description: "Set active devcontainer for this session. Use 'off' to disable, or 'repo/branch' for specific repo. Set create=true to create a new workspace if it doesn't exist.",
+      devcontainer: tool({
+        description: "Set active devcontainer for this session. Use 'off' to disable. Set create=true to create a new workspace if it doesn't exist.",
         args: {
           target: tool.schema.string().optional().describe(
-            "Branch name (e.g., 'feature-x'), repo/branch (e.g., 'myapp/feature-x'), 'off' to disable, or empty for status"
+            "Branch name (e.g., 'feature-x'), 'off' to disable, or empty for status"
           ),
           create: tool.schema.string().optional().describe(
             "Set to 'true' to create the workspace if it doesn't exist (requires confirmation)"
@@ -312,4 +312,4 @@ export const OCDC = async ({ client }) => {
 }
 
 // Default export for OpenCode plugin discovery
-export default OCDC
+export default devcontainers

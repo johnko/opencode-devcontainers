@@ -1,9 +1,9 @@
 ---
-name: ocdc
+name: opencode-devcontainers
 description: Concurrent branch development with devcontainers using clone-based isolation
 ---
 
-# ocdc - OpenCode DevContainers
+# OpenCode DevContainers
 
 When working on projects with devcontainers, use the `/devcontainer` command for concurrent branch development instead of git worktrees.
 
@@ -59,7 +59,7 @@ When a devcontainer is targeted:
 
 ### Port Assignments
 
-Ports are tracked in `~/.cache/ocdc/ports.json`:
+Ports are tracked in `~/.cache/opencode-devcontainers/ports.json`:
 
 ```json
 {
