@@ -2,6 +2,8 @@
 
 OpenCode plugin for running multiple devcontainer instances with auto-assigned ports and branch-based isolation.
 
+> **Note**: This is a community project and is not built by or affiliated with the OpenCode team.
+
 > **Version 0.x** - Pre-1.0 software. Minor versions may contain breaking changes.
 
 ## Why?
