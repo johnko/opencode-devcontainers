@@ -407,7 +407,11 @@ describe('down', () => {
   test('releases port allocation', async () => {
     await down('/workspace/test')
     
-    const ports = JSON.parse(readFileSync(join(testDir, 'ports.json'), 'utf-8'))
+    // Give async file operations time to complete
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    const content = readFileSync(join(testDir, 'ports.json'), 'utf-8')
+    const ports = JSON.parse(content)
     assert.strictEqual(ports['/workspace/test'], undefined)
   })
 
