@@ -57,13 +57,17 @@ export async function readJobs() {
  */
 export async function writeJobs(jobs) {
   const jobsPath = getJobsPath()
+  const dir = dirname(jobsPath)
   
   // Ensure directory exists
-  await mkdir(dirname(jobsPath), { recursive: true })
+  await mkdir(dir, { recursive: true })
   
   // Write atomically by writing to temp file then renaming
   const tempPath = jobsPath + '.tmp'
   await writeFile(tempPath, JSON.stringify(jobs, null, 2))
+  
+  // Ensure directory still exists before rename (handles race with cleanup)
+  await mkdir(dir, { recursive: true })
   await rename(tempPath, jobsPath)
 }
 
