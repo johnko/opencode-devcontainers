@@ -84,7 +84,28 @@ export {
   checkout,
   fetch,
   listIgnoredFiles,
+  isWorktree,
+  getWorktreeMainRepo,
+  createWorktree,
+  removeWorktree,
+  listWorktrees,
 } from './git.js'
+
+// Worktree workspace management
+export {
+  getWorktreePath,
+  createWorktreeWorkspace,
+  listWorktreeWorkspaces,
+  removeWorktreeWorkspace,
+} from './worktree.js'
+
+// Unified workspace management
+export {
+  listAllWorkspaces,
+  getWorkspaceStatus,
+  findStaleWorkspaces,
+  formatWorkspace,
+} from './workspaces.js'
 
 // Paths and utilities
 export {

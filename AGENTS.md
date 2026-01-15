@@ -5,8 +5,8 @@
 Before committing changes, verify documentation is updated to reflect code changes:
 
 1. **README.md** - Update if changes affect:
-   - Plugin usage (`/devcontainer` command)
-   - Configuration options (`~/.config/ocdc/config.json`)
+   - Plugin usage (`/devcontainer`, `/worktree`, `/workspaces` commands)
+   - Configuration options (`~/.config/opencode/devcontainers/config.json`)
    - Installation steps or dependencies
    - Usage examples
 
@@ -14,8 +14,9 @@ Before committing changes, verify documentation is updated to reflect code chang
    - Development setup or workflow
    - Test commands or patterns
    - Release process
+   - Project structure
 
-3. **plugin/command/devcontainer.md** - Update if changes affect:
+3. **plugin/command/*.md** - Update if changes affect:
    - Command arguments or behavior
    - Examples
 
@@ -40,15 +41,16 @@ OpenCode automatically updates npm plugins on startup. Just restart OpenCode.
 To force a specific version:
 ```json
 {
-  "plugin": ["opencode-devcontainers@5.0.0"]
+  "plugin": ["opencode-devcontainers@1.0.0"]
 }
 ```
 
-### Config Migration (if needed)
+### Config Locations
 
-Config file locations:
-- Main config: `~/.config/ocdc/config.json`
-- Cache/state: `~/.cache/ocdc/`
+- Main config: `~/.config/opencode/devcontainers/config.json`
+- Cache/state: `~/.cache/opencode-devcontainers/`
+- Clones: `~/.local/share/opencode/clone/`
+- Worktrees: `~/.local/share/opencode/worktree/`
 
 If config format changed, check release notes:
 

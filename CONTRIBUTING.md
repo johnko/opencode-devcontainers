@@ -15,7 +15,7 @@ Thanks for your interest in contributing!
    npm install
    ```
 
-3. Install the devcontainer CLI (required for actual container operations):
+3. Install the devcontainer CLI (required for devcontainer operations):
    ```bash
    npm install -g @devcontainers/cli
    ```
@@ -47,17 +47,23 @@ npm run test:watch
 ```
 opencode-devcontainers/
 ├── plugin/
-│   ├── index.js           # Plugin entry point
+│   ├── index.js           # Plugin entry point (tools + bash interception)
 │   ├── helpers.js          # Utility functions
 │   ├── command/
-│   │   └── devcontainer.md # Slash command definition
+│   │   ├── devcontainer.md # /devcontainer command definition
+│   │   ├── worktree.md     # /worktree command definition
+│   │   └── workspaces.md   # /workspaces command definition
 │   └── core/               # Core modules
+│       ├── index.js        # Public API exports
 │       ├── clones.js       # Clone management
 │       ├── config.js       # Override config generation
-│       ├── devcontainer.js # Devcontainer operations
-│       ├── git.js          # Git operations
-│       ├── paths.js        # Path constants
-│       └── ports.js        # Port allocation
+│       ├── devcontainer.js # Devcontainer CLI operations
+│       ├── git.js          # Git operations (clone, worktree, etc.)
+│       ├── jobs.js         # Background job tracking
+│       ├── paths.js        # Path constants and migration
+│       ├── ports.js        # Port allocation
+│       ├── worktree.js     # Worktree workspace management
+│       └── workspaces.js   # Unified workspace listing/cleanup
 ├── skill/
 │   └── ocdc/
 │       └── SKILL.md        # Agent skill documentation

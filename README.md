@@ -1,6 +1,6 @@
 # opencode-devcontainers
 
-OpenCode plugin for running multiple devcontainer instances with auto-assigned ports and branch-based isolation.
+OpenCode plugin for isolated branch workspaces using devcontainers or git worktrees.
 
 > **Note**: This is a community project and is not built by or affiliated with the OpenCode team.
 
@@ -8,13 +8,16 @@ OpenCode plugin for running multiple devcontainer instances with auto-assigned p
 
 ## Why?
 
-When working on multiple branches, you need isolated development environments. Git worktrees don't work with devcontainers because the `.git` file points outside the container.
+When working on multiple branches, you need isolated development environments:
 
-**opencode-devcontainers** solves this by:
-- Creating shallow clones for each branch (fully self-contained)
-- Auto-assigning ports from a configurable range (13000-13099)
-- Generating ephemeral override configs (your devcontainer.json stays clean)
-- Tracking active instances to avoid conflicts
+- **Devcontainers** provide full container isolation (different dependencies, databases, etc.)
+- **Worktrees** provide lightweight filesystem isolation (same dependencies, just different code)
+
+This plugin provides both options with:
+- Session state management (the agent remembers your workspace)
+- Auto-assigned ports from a configurable range (13000-13099)
+- Automatic copying of gitignored secrets (.env, credentials, etc.)
+- Unified workspace management and cleanup
 
 ## Installation
 
@@ -30,11 +33,12 @@ OpenCode automatically installs npm plugins on startup.
 
 ### Dependencies
 
-- `devcontainer` CLI - Install with: `npm install -g @devcontainers/cli`
+- For devcontainers: `devcontainer` CLI - Install with: `npm install -g @devcontainers/cli`
+- For worktrees: Just git (no additional dependencies)
 
 ## Usage
 
-In OpenCode, use the `/devcontainer` slash command:
+### Devcontainers (Full Container Isolation)
 
 ```
 /devcontainer feature-x    # Start/target a devcontainer for this branch
@@ -48,6 +52,37 @@ When a devcontainer is targeted:
 - Git operations and file reading run on host
 - Prefix with `HOST:` to force host execution
 
+### Worktrees (Lightweight Filesystem Isolation)
+
+```
+/worktree feature-x        # Create/target a worktree for this branch
+/worktree myapp/main       # Target specific repo/branch
+/worktree                  # Show current status
+/worktree off              # Disable, run commands in original directory
+```
+
+When a worktree is targeted:
+- Bash commands run in the worktree directory
+- Same `HOST:` prefix for escaping
+- Gitignored files are automatically copied from main repo
+
+### Workspace Management
+
+```
+/workspaces                # List all workspaces (clones + worktrees)
+/workspaces cleanup        # Find stale workspaces (not used in 7+ days)
+```
+
+## When to Use What
+
+| Use Case | Recommendation |
+|----------|----------------|
+| Project has devcontainer.json | `/devcontainer` |
+| Different dependencies per branch | `/devcontainer` |
+| Quick branch work, same deps | `/worktree` |
+| No Docker available | `/worktree` |
+| Testing migrations/databases | `/devcontainer` |
+
 ## Configuration
 
 `~/.config/opencode/devcontainers/config.json`:
@@ -60,13 +95,32 @@ When a devcontainer is targeted:
 
 ## How It Works
 
-1. **Clones**: Creates `~/.cache/devcontainer-clones/myapp/feature-x/` with a shallow clone. Gitignored secrets are auto-copied from main repo.
-2. **Ports**: Generates ephemeral override config with unique port, passed via `--override-config`.
-3. **Tracking**: Active instances tracked in `~/.cache/ocdc/ports.json`
+### Devcontainers
+1. Creates clone in `~/.local/share/opencode/clone/<repo>/<branch>/`
+2. Copies gitignored secrets from main repo
+3. Generates ephemeral override config with unique port
+4. Starts container via `devcontainer up`
+
+### Worktrees
+1. Creates worktree in `~/.local/share/opencode/worktree/<repo>/<branch>/`
+2. Copies gitignored secrets from main repo
+3. Runs `direnv allow` if .envrc exists
+4. Sets bash workdir to the worktree path
+
+### Port/Database Isolation (Worktrees)
+
+For worktrees, you can configure your `.envrc` to derive PORT and database settings from the worktree name to avoid conflicts:
+
+```bash
+# .envrc
+export BRANCH_NAME=$(basename $(pwd))
+export PORT=$((3000 + $(echo "$BRANCH_NAME" | cksum | cut -d' ' -f1) % 1000))
+export DATABASE_URL="postgres://localhost/${BRANCH_NAME//-/_}_development"
+```
 
 ## Integration with opencode-pilot
 
-When using [opencode-pilot](https://github.com/athal7/opencode-pilot) for automated issue processing, configure your `repos.yaml` to include the `/devcontainer` command in the prompt template:
+When using [opencode-pilot](https://github.com/athal7/opencode-pilot) for automated issue processing, configure your `repos.yaml`:
 
 ```yaml
 repos:
@@ -86,13 +140,20 @@ This starts an isolated devcontainer for each issue automatically.
 
 ### OpenCode Desktop shows changes from wrong directory
 
-When switching workspaces with `/devcontainer`, OpenCode's internal directory context doesn't update. The "Session changes" panel continues showing diffs from the original directory rather than the targeted devcontainer's clone.
-
-This is an upstream OpenCode limitation - `Instance.directory` is set once at startup and doesn't change mid-session.
+When switching workspaces with `/devcontainer` or `/worktree`, OpenCode's internal directory context doesn't update. The "Session changes" panel continues showing diffs from the original directory.
 
 **Workaround**: Start OpenCode directly in the target directory, or use separate terminal sessions per workspace.
 
 **Upstream issue**: [anomalyco/opencode#6697](https://github.com/anomalyco/opencode/issues/6697)
+
+## Environment Variables
+
+Override default paths:
+- `OCDC_CONFIG_DIR` - Config directory (default: `~/.config/opencode/devcontainers`)
+- `OCDC_CACHE_DIR` - Cache directory (default: `~/.cache/opencode-devcontainers`)
+- `OCDC_CLONES_DIR` - Clones directory (default: `~/.local/share/opencode/clone`)
+- `OCDC_WORKTREES_DIR` - Worktrees directory (default: `~/.local/share/opencode/worktree`)
+- `OCDC_SESSIONS_DIR` - Sessions directory (default: `<cache>/opencode-sessions`)
 
 ## Related
 

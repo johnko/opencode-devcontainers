@@ -10,6 +10,7 @@ import {
   saveSession,
   deleteSession,
   resolveWorkspace,
+  resolveWorktreeWorkspace,
   shouldRunOnHost,
   getSessionsDir,
   runWithTimeout,
@@ -28,6 +29,15 @@ import {
   cleanupJobs,
   JOB_STATUS,
   PATHS,
+  // Worktree imports
+  createWorktreeWorkspace,
+  getRepoRoot,
+  isWorktree,
+  // Workspaces imports
+  listAllWorkspaces,
+  getWorkspaceStatus,
+  findStaleWorkspaces,
+  formatWorkspace,
 } from "./core/index.js"
 
 // Timeout for init operations (2 seconds)
@@ -37,20 +47,23 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ============ Internal Functions ============
 
-async function installCommand(client) {
+async function installCommands(client) {
   try {
     const paths = await client.path.get()
     const configDir = paths.data?.config
     if (!configDir) return
     
     const commandDir = join(configDir, "command")
-    const destFile = join(commandDir, "devcontainer.md")
-    
-    // Always update command file to latest version
     mkdirSync(commandDir, { recursive: true })
-    const sourceFile = join(__dirname, "command/devcontainer.md")
-    if (existsSync(sourceFile)) {
-      copyFileSync(sourceFile, destFile)
+    
+    // Install all command files
+    const commands = ["devcontainer.md", "worktree.md", "workspaces.md"]
+    for (const cmd of commands) {
+      const sourceFile = join(__dirname, "command", cmd)
+      const destFile = join(commandDir, cmd)
+      if (existsSync(sourceFile)) {
+        copyFileSync(sourceFile, destFile)
+      }
     }
     
     // Clean up old command file names
@@ -106,8 +119,8 @@ function buildDevcontainerExecCommand(workspace, command) {
 // ============ Plugin Export ============
 
 export const devcontainers = async ({ client }) => {
-  // Install command file if needed (don't block on slow API)
-  runWithTimeout(() => installCommand(client), INIT_TIMEOUT_MS)
+  // Install command files if needed (don't block on slow API)
+  runWithTimeout(() => installCommands(client), INIT_TIMEOUT_MS)
   
   // Cleanup stale sessions (don't block on slow API)
   runWithTimeout(() => cleanupStaleSessions(client), INIT_TIMEOUT_MS)
@@ -340,9 +353,202 @@ export const devcontainers = async ({ client }) => {
                  `Use \`/devcontainer off\` to disable, or prefix with \`HOST:\` to run on host.`
         }
       }),
+      
+      // Interactive command for manual worktree targeting
+      worktree: tool({
+        description: "Set active git worktree for this session. Use 'off' to disable. Worktrees provide isolated branch work without devcontainers.",
+        args: {
+          target: tool.schema.string().optional().describe(
+            "Branch name (e.g., 'feature-x'), 'off' to disable, or empty for status"
+          ),
+        },
+        async execute(args, ctx) {
+          const { sessionID } = ctx
+          const { target } = args
+          
+          // Status request (no target)
+          if (!target || target.trim() === "") {
+            const session = loadSession(sessionID)
+            if (!session) {
+              return "No workspace active for this session.\n\n" +
+                     "Use `/worktree <branch>` to create/target a worktree."
+            }
+            
+            if (session.type !== "worktree") {
+              return `Current session is targeting a devcontainer, not a worktree.\n` +
+                     `Use \`/devcontainer\` to check devcontainer status, or \`/devcontainer off\` first.`
+            }
+            
+            return `Current worktree: ${session.repoName}/${session.branch}\n` +
+                   `Workspace: ${session.workspace}\n` +
+                   `Main repo: ${session.mainRepo}\n` +
+                   `\nAll bash commands will run in this worktree directory.\n` +
+                   `Use \`/worktree off\` to disable.`
+          }
+          
+          // Disable request
+          if (target === "off") {
+            const session = loadSession(sessionID)
+            deleteSession(sessionID)
+            if (session && session.type === "worktree") {
+              return `Worktree mode disabled. Commands will now run in the current directory.`
+            }
+            if (session) {
+              return `Session was targeting a devcontainer, not a worktree. Session cleared.`
+            }
+            return "No workspace was active for this session."
+          }
+          
+          // Check if we're in a git repo
+          const cwd = process.cwd()
+          const repoRoot = await getRepoRoot(cwd)
+          
+          if (!repoRoot) {
+            return `Not in a git repository.\n\n` +
+                   `Run this command from within a git repository.`
+          }
+          
+          // Check if already in a worktree
+          if (await isWorktree(repoRoot)) {
+            return `Already in a worktree.\n\n` +
+                   `Create new worktrees from the main repository, not from within another worktree.`
+          }
+          
+          // Check if worktree already exists
+          const resolved = resolveWorktreeWorkspace(target)
+          
+          if (resolved && !resolved.ambiguous) {
+            const { workspace, repoName, branch, mainRepo } = resolved
+            
+            // Save session state
+            saveSession(sessionID, {
+              type: "worktree",
+              branch,
+              workspace,
+              repoName,
+              mainRepo,
+            })
+            
+            return `Session now targeting worktree: ${repoName}/${branch}\n` +
+                   `Workspace: ${workspace}\n\n` +
+                   `All bash commands will run in this worktree directory.\n` +
+                   `Use \`/worktree off\` to disable, or prefix with \`HOST:\` to run in original directory.`
+          }
+          
+          if (resolved?.ambiguous) {
+            const options = resolved.matches
+              .map(m => `  - ${m.repo}/${m.branch}`)
+              .join("\n")
+            return `Ambiguous branch '${target}' found in multiple repos:\n${options}\n\n` +
+                   `Use \`/worktree <repo>/${target}\` to specify.`
+          }
+          
+          // Create new worktree
+          try {
+            const result = await createWorktreeWorkspace({
+              repoRoot,
+              branch: target,
+            })
+            
+            saveSession(sessionID, {
+              type: "worktree",
+              branch: result.branch,
+              workspace: result.workspace,
+              repoName: result.repoName,
+              mainRepo: result.mainRepo,
+            })
+            
+            return `Created worktree for ${result.repoName}/${result.branch}\n` +
+                   `Workspace: ${result.workspace}\n\n` +
+                   `All bash commands will run in this worktree directory.\n` +
+                   `Gitignored files (secrets, .env) have been copied from main repo.\n` +
+                   `Use \`/worktree off\` to disable.`
+          } catch (err) {
+            return `Failed to create worktree: ${err.message}`
+          }
+        }
+      }),
+      
+      // Workspace management tool
+      workspaces: tool({
+        description: "List and manage workspaces (worktrees and devcontainer clones). Use 'cleanup' to find stale workspaces.",
+        args: {
+          action: tool.schema.string().optional().describe(
+            "'cleanup' to identify stale workspaces, or empty to list all"
+          ),
+        },
+        async execute(args, ctx) {
+          const { action } = args
+          
+          if (action === 'cleanup') {
+            // Find stale workspaces
+            const stale = await findStaleWorkspaces({ maxAgeDays: 7 })
+            
+            if (stale.length === 0) {
+              return `No stale workspaces found.\n\n` +
+                     `All workspaces have been accessed within the last 7 days.`
+            }
+            
+            let output = `Found ${stale.length} stale workspace(s) (not accessed in 7+ days):\n\n`
+            
+            for (const ws of stale) {
+              const status = await getWorkspaceStatus(ws.workspace)
+              output += formatWorkspace(ws, status) + '\n'
+              output += `  Path: ${ws.workspace}\n`
+              if (ws.hasUncommitted) {
+                output += `  ⚠️  Has uncommitted changes!\n`
+              }
+              output += '\n'
+            }
+            
+            output += `To remove a workspace:\n`
+            output += `- Worktrees: \`git worktree remove <path>\` from main repo\n`
+            output += `- Clones: \`rm -rf <path>\` (and stop any running containers)\n`
+            
+            return output
+          }
+          
+          // Default: list all workspaces
+          const workspaces = await listAllWorkspaces()
+          
+          if (workspaces.length === 0) {
+            return `No workspaces found.\n\n` +
+                   `Use \`/devcontainer <branch>\` to create a devcontainer clone, or\n` +
+                   `Use \`/worktree <branch>\` to create a worktree.`
+          }
+          
+          let output = `Found ${workspaces.length} workspace(s):\n\n`
+          
+          // Group by type
+          const clones = workspaces.filter(w => w.type === 'clone')
+          const worktrees = workspaces.filter(w => w.type === 'worktree')
+          
+          if (clones.length > 0) {
+            output += `**Devcontainer Clones** (${clones.length}):\n`
+            for (const ws of clones) {
+              const status = await getWorkspaceStatus(ws.workspace)
+              output += `  ${formatWorkspace(ws, status)}\n`
+            }
+            output += '\n'
+          }
+          
+          if (worktrees.length > 0) {
+            output += `**Worktrees** (${worktrees.length}):\n`
+            for (const ws of worktrees) {
+              const status = await getWorkspaceStatus(ws.workspace)
+              output += `  ${formatWorkspace(ws, status)}\n`
+            }
+            output += '\n'
+          }
+          
+          output += `Use \`/workspaces cleanup\` to find stale workspaces.`
+          
+          return output
+        }
+      }),
     },
     
-    // Intercept bash commands to run in container
+    // Intercept bash commands to run in workspace
     "tool.execute.before": async (input, output) => {
       // Only intercept bash commands
       if (input.tool !== "bash") return
@@ -350,7 +556,7 @@ export const devcontainers = async ({ client }) => {
       const session = loadSession(input.sessionID)
       if (!session?.workspace) return
       
-      // If workdir is specified and is not within the devcontainer workspace, don't intercept
+      // If workdir is specified and is not within the workspace, don't intercept
       // This handles the case where the user/Claude is working in a different directory
       const workdir = output.args?.workdir
       if (workdir && !workdir.startsWith(session.workspace)) {
@@ -371,6 +577,13 @@ export const devcontainers = async ({ client }) => {
       // Check if command should run on host
       if (hostCheck) return
       
+      // Handle worktree sessions - just set workdir, no container wrapping
+      if (session.type === "worktree") {
+        output.args.workdir = session.workspace
+        return
+      }
+      
+      // Handle devcontainer sessions
       // Check if container is still starting - provide helpful error instead of cryptic failure
       if (session.starting) {
         const job = await getJob(session.workspace)

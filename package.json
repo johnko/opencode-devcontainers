@@ -1,7 +1,7 @@
 {
   "name": "opencode-devcontainers",
   "version": "0.2.0",
-  "description": "OpenCode plugin for running devcontainers with auto-assigned ports",
+  "description": "OpenCode plugin for isolated branch workspaces using devcontainers or git worktrees",
   "type": "module",
   "main": "plugin/index.js",
   "repository": {
@@ -14,6 +14,8 @@
   },
   "keywords": [
     "devcontainer",
+    "worktree",
+    "workspace",
     "docker",
     "development",
     "branches",

@@ -12,26 +12,23 @@ import { mkdir, writeFile, realpath, access, constants } from 'fs/promises'
 import { existsSync } from 'fs'
 
 /**
- * Get path value, preferring env var over default
- */
-function getPath(envVar, defaultPath) {
-  return process.env[envVar] || defaultPath
-}
-
-/**
  * Path constants - all paths are derived from config/cache base dirs
  * Use getters to support dynamic env var changes (for testing)
  */
 export const PATHS = {
   get config() {
-    return getPath('OCDC_CONFIG_DIR', join(homedir(), '.config/opencode/devcontainers'))
+    return process.env.OCDC_CONFIG_DIR || join(homedir(), '.config/opencode/devcontainers')
   },
   get cache() {
-    return getPath('OCDC_CACHE_DIR', join(homedir(), '.cache/opencode-devcontainers'))
+    return process.env.OCDC_CACHE_DIR || join(homedir(), '.cache/opencode-devcontainers')
   },
   // Clones live alongside opencode desktop worktrees for discoverability
   get clones() {
-    return getPath('OCDC_CLONES_DIR', join(homedir(), '.local/share/opencode/clone'))
+    return process.env.OCDC_CLONES_DIR || join(homedir(), '.local/share/opencode/clone')
+  },
+  // Worktrees directory for non-devcontainer branch isolation
+  get worktrees() {
+    return process.env.OCDC_WORKTREES_DIR || join(homedir(), '.local/share/opencode/worktree')
   },
   get ports() {
     return join(this.cache, 'ports.json')
@@ -43,7 +40,7 @@ export const PATHS = {
     return join(this.config, 'config.json')
   },
   get sessions() {
-    return getPath('OCDC_SESSIONS_DIR', join(this.cache, 'opencode-sessions'))
+    return process.env.OCDC_SESSIONS_DIR || join(this.cache, 'opencode-sessions')
   },
 }
 
@@ -102,6 +99,7 @@ export async function exists(path) {
  * @returns {Promise<void>}
  */
 export async function ensureDirs() {
+  
   const dirs = [
     PATHS.config,
     PATHS.cache,

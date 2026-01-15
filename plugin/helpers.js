@@ -48,6 +48,12 @@ export function getClonesDir() {
     join(process.env.HOME, ".local/share/opencode/clone")
 }
 
+// Worktrees directory for non-devcontainer branch isolation
+export function getWorktreesDir() {
+  return process.env.OCDC_WORKTREES_DIR ||
+    join(process.env.HOME, ".local/share/opencode/worktree")
+}
+
 // Commands that should always run on host, not in container
 export const HOST_COMMANDS = [
   // File navigation
@@ -64,6 +70,8 @@ export const HOST_COMMANDS = [
   'which', 'type', 'echo', 'env', 'printenv', 'whoami', 'hostname',
   // devcontainer/opencode commands (prevent recursion)
   'devcontainer', 'opencode',
+  // direnv for environment setup
+  'direnv',
   // Package managers (global installs on host)
   'brew', 'apt', 'apt-get', 'yum', 'dnf',
   // Docker (runs on host, not inside container)
@@ -171,6 +179,97 @@ export function resolveWorkspace(branchArg) {
   }
   
   return null
+}
+
+/**
+ * Resolve a worktree workspace from branch argument
+ * Similar to resolveWorkspace but for worktrees directory
+ */
+export function resolveWorktreeWorkspace(branchArg) {
+  const worktreesDir = getWorktreesDir()
+  let repoName = null
+  let branch = branchArg
+  
+  // Handle repo/branch syntax
+  if (branchArg.includes("/")) {
+    const parts = branchArg.split("/")
+    repoName = parts[0]
+    branch = parts.slice(1).join("/")
+  }
+  
+  // If repo specified, look directly
+  if (repoName) {
+    const worktreePath = join(worktreesDir, repoName, branch)
+    if (existsSync(worktreePath)) {
+      // Read .git file to get main repo path
+      const mainRepo = getMainRepoFromWorktree(worktreePath)
+      return { workspace: worktreePath, repoName, branch, mainRepo, repo: repoName }
+    }
+    return null
+  }
+  
+  // Try to infer repo from current directory
+  try {
+    const gitRoot = execSync("git rev-parse --show-toplevel", { 
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"]
+    }).trim()
+    repoName = basename(gitRoot)
+    const worktreePath = join(worktreesDir, repoName, branch)
+    if (existsSync(worktreePath)) {
+      return { workspace: worktreePath, repoName, branch, mainRepo: gitRoot, repo: repoName }
+    }
+  } catch {}
+  
+  // Search all repos for this branch
+  if (existsSync(worktreesDir)) {
+    const matches = []
+    for (const repo of readdirSync(worktreesDir)) {
+      const repoPath = join(worktreesDir, repo)
+      try {
+        const stat = statSync(repoPath)
+        if (!stat.isDirectory()) continue
+      } catch { continue }
+      
+      const worktreePath = join(repoPath, branch)
+      if (existsSync(worktreePath)) {
+        const mainRepo = getMainRepoFromWorktree(worktreePath)
+        matches.push({ workspace: worktreePath, repoName: repo, branch, mainRepo, repo })
+      }
+    }
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
+      return { ambiguous: true, matches }
+    }
+  }
+  
+  return null
+}
+
+/**
+ * Extract main repo path from a worktree's .git file
+ */
+function getMainRepoFromWorktree(worktreePath) {
+  try {
+    const gitFile = join(worktreePath, '.git')
+    if (!existsSync(gitFile)) return null
+    
+    const content = readFileSync(gitFile, 'utf-8')
+    if (!content.startsWith('gitdir:')) return null
+    
+    // Parse: gitdir: /path/to/main/.git/worktrees/<name>
+    const gitdir = content.slice(7).trim()
+    // Go up from .git/worktrees/<name> to get main repo
+    // e.g., /path/to/main/.git/worktrees/feature -> /path/to/main
+    const parts = gitdir.split('/')
+    const worktreesIdx = parts.indexOf('worktrees')
+    if (worktreesIdx > 0 && parts[worktreesIdx - 1] === '.git') {
+      return parts.slice(0, worktreesIdx - 1).join('/')
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 // ============ Command Classification ============

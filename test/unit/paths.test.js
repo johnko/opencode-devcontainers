@@ -29,18 +29,21 @@ describe('PATHS', () => {
     delete process.env.OCDC_CONFIG_DIR
     delete process.env.OCDC_CACHE_DIR
     delete process.env.OCDC_CLONES_DIR
+    delete process.env.OCDC_WORKTREES_DIR
     
     // Getters return default paths when env vars are unset
     assert.strictEqual(PATHS.config, join(homedir(), '.config/opencode/devcontainers'))
     assert.strictEqual(PATHS.cache, join(homedir(), '.cache/opencode-devcontainers'))
     // Clones live alongside opencode desktop worktrees for discoverability
     assert.strictEqual(PATHS.clones, join(homedir(), '.local/share/opencode/clone'))
+    // Worktrees for non-devcontainer branch isolation
+    assert.strictEqual(PATHS.worktrees, join(homedir(), '.local/share/opencode/worktree'))
   })
 
   test('respects OCDC_CONFIG_DIR env var', () => {
     process.env.OCDC_CONFIG_DIR = '/custom/config'
-    // Note: PATHS is already imported, so we test the getter behavior
-    // This will need dynamic import or getter function in implementation
+    assert.strictEqual(PATHS.config, '/custom/config')
+    delete process.env.OCDC_CONFIG_DIR
   })
 
   test('derives ports path from cache', () => {
