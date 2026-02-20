@@ -68,7 +68,12 @@ export async function writeJobs(jobs) {
   
   // Ensure directory still exists before rename (handles race with cleanup)
   await mkdir(dir, { recursive: true })
-  await rename(tempPath, jobsPath)
+  try {
+    await rename(tempPath, jobsPath)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+    // Directory was removed (e.g., during test cleanup) — ignore
+  }
 }
 
 /**

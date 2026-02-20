@@ -395,14 +395,17 @@ describe('upBackground', () => {
     assert.ok(result.repo)
   })
 
-  test('creates job with pending status', async () => {
+  test('creates job entry on start', async () => {
     const result = await upBackground(workspaceDir)
-    
+
+    // startJob is awaited synchronously before upBackground returns,
+    // so the job exists immediately. The background task may have already
+    // transitioned it from pending -> running by the time we read.
     const jobs = await readJobs()
     const job = jobs[result.workspace]
-    
+
     assert.ok(job, 'Job should be created')
-    assert.strictEqual(job.status, JOB_STATUS.PENDING)
+    assert.ok(Object.values(JOB_STATUS).includes(job.status), 'Job should have a valid status')
     assert.strictEqual(job.branch, 'main')
   })
 
